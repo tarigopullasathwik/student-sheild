@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StudentShield AI</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            color: #00ff99;
+            font-family: Consolas, monospace;
+            overflow-x: hidden;
+        }
+
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+
+        .container {
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 36px;
+        }
+
+        textarea, input {
+            width: 80%;
+            padding: 10px;
+            margin: 10px;
+            background: black;
+            border: 1px solid #00ff99;
+            color: #00ff99;
+            font-family: Consolas;
+        }
+
+        button {
+            padding: 12px 25px;
+            background: #00ff99;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .result-box {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #00ff99;
+        }
+
+        .history {
+            margin-top: 40px;
+            text-align: left;
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .badge-high { color: red; font-weight: bold; }
+        .badge-medium { color: orange; font-weight: bold; }
+        .badge-low { color: lime; font-weight: bold; }
+
+        .terminal {
+            border: 1px solid #00ff99;
+            padding: 15px;
+            margin: 20px auto;
+            width: 80%;
+            text-align: left;
+            height: 120px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div class="container">
+    <h1>🛡 StudentShield AI Cyber Scanner</h1>
+
+    <input type="email" id="senderEmail" placeholder="Sender Email">
+    <input type="email" id="companyEmail" placeholder="Company Official Email">
+    <textarea id="jobDescription" rows="6" placeholder="Paste Internship / Job Description Here..."></textarea>
+    <br>
+    <input type="file" id="offerLetter" accept=".pdf,.doc,.docx">
+    <br>
+    <button onclick="scanData()">SCAN NOW</button>
+
+    <div class="terminal" id="terminal"></div>
+
+    <div class="result-box" id="resultBox"></div>
+
+    <div class="history">
+        <h2>📊 Detection History</h2>
+        <ul id="historyList"></ul>
+    </div>
+</div>
+
+<script>
+    // MATRIX RAIN EFFECT
+    const canvas = document.getElementById("matrix");
+    const ctx = canvas.getContext("2d");
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+    const letters = "01ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const fontSize = 14;
+    const columns = canvas.width / fontSize;
+    const drops = [];
+    for (let x = 0; x < columns; x++) drops[x] = 1;
+    function draw() {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00ff99";
+        ctx.font = fontSize + "px monospace";
+        for (let i = 0; i < drops.length; i++) {
+            const text = letters[Math.floor(Math.random() * letters.length)];
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+            drops[i]++;
+        }
+    }
+    setInterval(draw, 35);
+
+    // TERMINAL TYPING EFFECT
+    function typeTerminal(text) {
+        const terminal = document.getElementById("terminal");
+        terminal.innerHTML = "";
+        let i = 0;
+        function typing() {
+            if (i < text.length) {
+                terminal.innerHTML += text.charAt(i);
+                i++;
+                setTimeout(typing, 20);
+            }
+        }
+        typing();
+    }
+
+    // VOICE ALERT
+    function speak(message) {
+        const speech = new SpeechSynthesisUtterance(message);
+        speech.lang = "en-US";
+        window.speechSynthesis.speak(speech);
+    }
+
+    // UPDATED SCAN FUNCTION
+    function scanData() {
+        const sender = document.getElementById("senderEmail").value;
+        const company = document.getElementById("companyEmail").value;
+        const description = document.getElementById("jobDescription").value;
+        const fileInput = document.getElementById("offerLetter");
+        const file = fileInput.files[0];
+
+        typeTerminal("Initializing Scan...\nAnalyzing Text...\nChecking Risk Keywords...\nEvaluating ML Model...\nScan Complete.");
+
+        const formData = new FormData();
+        formData.append("sender_email", sender);
+        formData.append("company_email", company);
+        formData.append("text", description);
+        if (file) formData.append("offer_letter", file);
+
+        fetch("/predict", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById("resultBox").innerHTML = `<p style="color:red">Error: ${data.error}</p>`;
+                speak("Error occurred during scan. Check console.");
+                console.error(data.error);
+                return;
+            }
+
+            let riskBadge = "";
+            if (data.confidence > 80) riskBadge = "badge-high";
+            else if (data.confidence > 50) riskBadge = "badge-medium";
+            else riskBadge = "badge-low";
+
+            document.getElementById("resultBox").innerHTML = `
+                <h2>Result: ${data.prediction}</h2>
+                <p><b>Confidence:</b> ${data.confidence}%</p>
+                <p><b>Sender Email:</b> ${data.sender_email}</p>
+                <p><b>Company Email:</b> ${data.company_email}</p>
+                <p><b>Cyber Risk Level:</b> <span class="${riskBadge}">${data.risk_level}</span></p>
+                ${data.uploaded_file ? `<p><b>Uploaded File:</b> ${data.uploaded_file}</p>` : ''}
+            `;
+
+            const history = document.getElementById("historyList");
+            const li = document.createElement("li");
+            li.textContent = `${data.prediction} - ${data.confidence}%`;
+            history.appendChild(li);
+
+            if (data.prediction === "FAKE")
+                speak("Warning. This appears to be a fake opportunity.");
+            else
+                speak("This opportunity appears to be safe.");
+        })
+        .catch(err => {
+            document.getElementById("resultBox").innerHTML = `<p style="color:red">Fetch error: ${err}</p>`;
+            console.error(err);
+        });
+    }
+</script>
+
+</body>
+</html>
